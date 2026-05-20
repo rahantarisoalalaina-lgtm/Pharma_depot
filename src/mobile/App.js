@@ -1,30 +1,24 @@
-// App.js — Point d'entree de l'application mobile (mode hors ligne inclus)
+// App.js
 import React from 'react';
-import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { AuthProvider } from './src/context/AuthContext';
-import { ThemeProvider, useTheme } from './src/context/ThemeContext';
-import { OfflineProvider } from './src/context/OfflineContext';
-import AppNavigator from './src/navigation/AppNavigator';
-
-function Root() {
-  const { isDark } = useTheme();
-  return (
-    <SafeAreaProvider>
-      <StatusBar style={isDark ? 'light' : 'dark'} />
-      <AppNavigator />
-    </SafeAreaProvider>
-  );
-}
+import { ThemeProvider }    from './src/context/ThemeContext';
+import { AuthProvider }     from './src/context/AuthContext';
+import { OfflineProvider }  from './src/context/OfflineContext';
+import { LanguageProvider } from './src/context/LanguageContext';
+import AppNavigator         from './src/navigation/AppNavigator';
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <OfflineProvider>
-          <Root />
-        </OfflineProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <OfflineProvider>
+              <AppNavigator />
+            </OfflineProvider>
+          </AuthProvider>
+        </LanguageProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

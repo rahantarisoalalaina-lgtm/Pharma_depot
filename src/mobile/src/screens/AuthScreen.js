@@ -7,12 +7,15 @@ import {
 import { useAuth }    from '../context/AuthContext';
 import { useTheme }   from '../context/ThemeContext';
 import { useOffline } from '../context/OfflineContext';
+import { useLang }    from '../context/LanguageContext';
+import { LANGUAGES }  from '../i18n/i18n';
 import api, { PROVINCES_STATIQUES } from '../services/api';
 
 export default function AuthScreen() {
-  const { login }               = useAuth();
+  const { login }                       = useAuth();
   const { colors, toggleTheme, isDark } = useTheme();
-  const { isOnline }            = useOffline();
+  const { isOnline }                    = useOffline();
+  const { lang, switchLang, t }         = useLang();
 
   const [role,       setRole]       = useState('gestionnaire');
   const [provinces,  setProvinces]  = useState(PROVINCES_STATIQUES);
@@ -24,6 +27,8 @@ export default function AuthScreen() {
   const [showProv,   setShowProv]   = useState(false);
   const [showPharma, setShowPharma] = useState(false);
 
+  const nextLang = LANGUAGES.find(l => l.code !== lang);
+
   useEffect(() => {
     api.getProvinces()
       .then(r => { if ((r.data || []).length > 0) setProvinces(r.data); })
@@ -32,7 +37,8 @@ export default function AuthScreen() {
 
   useEffect(() => {
     if (role === 'client' && form.province_id) {
-      setLoadingPh(true); setPharmacies([]);
+      setLoadingPh(true);
+      setPharmacies([]);
       api.getPharmaciesProvince(form.province_id)
         .then(r => setPharmacies(r.data || []))
         .catch(() => setPharmacies([]))
@@ -41,44 +47,53 @@ export default function AuthScreen() {
   }, [role, form.province_id]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const selProv   = provinces.find(p  => String(p.id)  === String(form.province_id));
-  const selPharma = pharmacies.find(p => String(p.id)  === String(form.pharmacie_id));
+  const selProv   = (provinces  || []).find(p => String(p.id) === String(form.province_id));
+  const selPharma = (pharmacies || []).find(p => String(p.id) === String(form.pharmacie_id));
 
   const handleSubmit = async () => {
     setError('');
-    if (role === 'gestionnaire' && !form.email)    { setError('Entrez votre email'); return; }
-    if (!form.mot_de_passe)                        { setError('Entrez votre mot de passe'); return; }
-    if (role === 'client' && !form.pharmacie_id)   { setError('Selectionnez votre pharmacie'); return; }
-    if (!isOnline) { setError('Connexion impossible hors ligne.'); return; }
+    if (role === 'gestionnaire' && !form.email)   { setError(t('email') + ' ?'); return; }
+    if (!form.mot_de_passe)                       { setError(t('mot_de_passe') + ' ?'); return; }
+    if (role === 'client' && !form.pharmacie_id)  { setError(t('selectionner_pharmacie')); return; }
     setLoading(true);
     try {
       let res, userData;
       if (role === 'gestionnaire') {
         res = await api.loginGestionnaire({ email: form.email, mot_de_passe: form.mot_de_passe });
-        userData = res.data.gestionnaire;
+        userData = res.data.gestionnaire || res.data;
       } else {
         res = await api.loginClient({ pharmacie_id: parseInt(form.pharmacie_id), mot_de_passe: form.mot_de_passe });
-        const ph = res.data.pharmacie;
+        const ph = res.data.pharmacie || res.data;
         userData = {
           id: ph.id, nom: ph.nom, prenom: ph.contact_nom || ph.nom,
-          province_id: ph.province_id, province_nom: ph.province_nom || selProv?.nom || '',
+          province_id: ph.province_id,
+          province_nom: ph.province_nom || selProv?.nom || '',
           pharmacie_id: ph.id, pharmacie_nom: ph.nom,
+          role: 'client',
         };
       }
-      await login(userData, res.data.token, role);
-    } catch (e) { setError(e.message || 'Identifiants incorrects.'); }
-    finally { setLoading(false); }
+      await login(userData, res.data.token || res.token, role);
+    } catch (e) {
+      setError(e.message || 'Identifiants incorrects.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const s = styles(colors);
 
   return (
-    <KeyboardAvoidingView style={[s.container, { backgroundColor: colors.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+    <KeyboardAvoidingView
+      style={[s.container, { backgroundColor: colors.bg }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}>
 
         {!isOnline && (
-          <View style={[s.banner, { backgroundColor: colors.warning }]}>
-            <Text style={s.bannerTxt}>Hors ligne — les provinces sont disponibles, la connexion necessite le reseau</Text>
+          <View style={[s.banner, { backgroundColor: colors.primary }]}>
+            <Text style={s.bannerTxt}>{t('mode_hors_ligne')}</Text>
           </View>
         )}
 
@@ -87,43 +102,61 @@ export default function AuthScreen() {
           <View style={[s.logoBox, { backgroundColor: colors.primary }]}>
             <Text style={s.logoTxt}>+</Text>
           </View>
-          <Text style={[s.appName, { color: colors.textPrimary }]}>Depot de Pharmacie</Text>
-          <Text style={[s.appSub,  { color: colors.textMuted }]}>Madagascar — Gestion provinciale</Text>
-          <TouchableOpacity style={[s.themeBtn, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={toggleTheme}>
-            <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: '600' }}>{isDark ? 'Mode clair' : 'Mode sombre'}</Text>
-          </TouchableOpacity>
+          <Text style={[s.appName, { color: colors.textPrimary }]}>{t('app_name')}</Text>
+          <Text style={[s.appSub,  { color: colors.textMuted }]}>{t('app_sub')}</Text>
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+            <TouchableOpacity
+              style={[s.btn, { backgroundColor: colors.card, borderColor: colors.primary }]}
+              onPress={() => switchLang(nextLang.code)}>
+              <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '700' }}>
+                {nextLang.flag} {nextLang.label}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.btn, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={toggleTheme}>
+              <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: '600' }}>
+                {isDark ? t('mode_clair') : t('mode_sombre')}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={[s.card, { backgroundColor: colors.card }]}>
-          {/* Role */}
-          <Text style={[s.label, { color: colors.textMuted }]}>Je suis</Text>
+          {/* Rôle */}
+          <Text style={[s.label, { color: colors.textMuted }]}>{t('je_suis')}</Text>
           <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
             {[
-              ['gestionnaire', 'Gestionnaire', 'Depot provincial'],
-              ['client',       'Pharmacie',    'Client du depot'],
+              ['gestionnaire', t('gestionnaire'), t('depot_provincial')],
+              ['client',       t('pharmacie'),     t('client_depot')],
             ].map(([r, title, sub]) => (
               <TouchableOpacity key={r}
-                style={[s.roleCard, { borderColor: role === r ? colors.primary : colors.border, backgroundColor: role === r ? colors.badgeGreenBg : colors.inputBg }]}
+                style={[s.roleCard, {
+                  borderColor: role === r ? colors.primary : colors.border,
+                  backgroundColor: role === r ? colors.badgeGreenBg : colors.inputBg,
+                }]}
                 onPress={() => { setRole(r); setError(''); setForm(f => ({ ...f, province_id: '', pharmacie_id: '' })); }}>
                 <View style={[s.roleIcon, { backgroundColor: colors.primary }]}>
-                  <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>{r === 'gestionnaire' ? 'G' : 'P'}</Text>
+                  <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>
+                    {r === 'gestionnaire' ? 'G' : 'P'}
+                  </Text>
                 </View>
                 <Text style={[s.roleTitle, { color: role === r ? colors.primary : colors.textPrimary }]}>{title}</Text>
-                <Text style={[s.roleSub,   { color: colors.textMuted }]}>{sub}</Text>
+                <Text style={[s.roleSub, { color: colors.textMuted }]}>{sub}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          {error ? (
+          {!!error && (
             <View style={[s.errorBox, { backgroundColor: colors.badgeDangerBg }]}>
               <Text style={{ color: colors.danger, fontSize: 13, fontWeight: '500' }}>{error}</Text>
             </View>
-          ) : null}
+          )}
 
-          {/* Gestionnaire : email */}
+          {/* Email (gestionnaire) */}
           {role === 'gestionnaire' && (
             <>
-              <Text style={[s.label, { color: colors.textMuted }]}>Email *</Text>
+              <Text style={[s.label, { color: colors.textMuted }]}>{t('email')} *</Text>
               <TextInput
                 style={[s.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.textPrimary }]}
                 value={form.email} onChangeText={v => set('email', v)}
@@ -133,99 +166,112 @@ export default function AuthScreen() {
             </>
           )}
 
-          {/* Client : province -> pharmacie */}
+          {/* Province + Pharmacie (client) */}
           {role === 'client' && (
             <>
-              <Text style={[s.label, { color: colors.textMuted }]}>Province *</Text>
-              <TouchableOpacity style={[s.picker, { backgroundColor: colors.inputBg, borderColor: colors.border }]}
+              <Text style={[s.label, { color: colors.textMuted }]}>{t('province')} *</Text>
+              <TouchableOpacity
+                style={[s.picker, { backgroundColor: colors.inputBg, borderColor: colors.border }]}
                 onPress={() => { setShowProv(!showProv); setShowPharma(false); }}>
                 <Text style={{ flex: 1, fontSize: 14, color: selProv ? colors.textPrimary : colors.textMuted }}>
-                  {selProv ? selProv.nom : 'Selectionner une province'}
+                  {selProv ? selProv.nom : t('selectionner_province')}
                 </Text>
-                <Text style={{ color: colors.textMuted }}>v</Text>
+                <Text style={{ color: colors.textMuted }}>▼</Text>
               </TouchableOpacity>
               {showProv && (
                 <View style={[s.dropdown, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  {provinces.map(p => (
-                    <TouchableOpacity key={p.id} style={[s.dropItem, { borderBottomColor: colors.borderLight }]}
+                  {(provinces || []).map(p => (
+                    <TouchableOpacity key={p.id}
+                      style={[s.dropItem, { borderBottomColor: colors.borderLight }]}
                       onPress={() => { set('province_id', String(p.id)); set('pharmacie_id', ''); setShowProv(false); }}>
                       <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textPrimary }}>{p.nom}</Text>
-                      {p.description ? <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>{p.description}</Text> : null}
+                      {p.description
+                        ? <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>{p.description}</Text>
+                        : null}
                     </TouchableOpacity>
                   ))}
                 </View>
               )}
 
-              {form.province_id ? (
+              {!!form.province_id && (
                 <>
-                  <Text style={[s.label, { color: colors.textMuted, marginTop: 12 }]}>Pharmacie *</Text>
-                  <TouchableOpacity style={[s.picker, { backgroundColor: colors.inputBg, borderColor: colors.border }]}
+                  <Text style={[s.label, { color: colors.textMuted, marginTop: 12 }]}>{t('pharmacie')} *</Text>
+                  <TouchableOpacity
+                    style={[s.picker, { backgroundColor: colors.inputBg, borderColor: colors.border }]}
                     onPress={() => { setShowPharma(!showPharma); setShowProv(false); }}>
                     <Text style={{ flex: 1, fontSize: 14, color: selPharma ? colors.textPrimary : colors.textMuted }}>
-                      {loadingPh ? 'Chargement...' : selPharma ? selPharma.nom : 'Selectionner votre pharmacie'}
+                      {loadingPh ? t('chargement') : selPharma ? selPharma.nom : t('selectionner_pharmacie')}
                     </Text>
-                    <Text style={{ color: colors.textMuted }}>v</Text>
+                    <Text style={{ color: colors.textMuted }}>▼</Text>
                   </TouchableOpacity>
                   {showPharma && (
                     <View style={[s.dropdown, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                      {pharmacies.length === 0 ? (
-                        <View style={s.dropItem}>
-                          <Text style={{ color: colors.textMuted }}>
-                            {loadingPh ? 'Chargement...' : !isOnline ? 'Reseau requis pour charger les pharmacies' : 'Aucune pharmacie trouvee'}
-                          </Text>
-                        </View>
-                      ) : pharmacies.map(p => (
-                        <TouchableOpacity key={p.id} style={[s.dropItem, { borderBottomColor: colors.borderLight }]}
-                          onPress={() => { set('pharmacie_id', String(p.id)); setShowPharma(false); }}>
-                          <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textPrimary }}>{p.nom}</Text>
-                          {p.adresse ? <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>{p.adresse}</Text> : null}
-                        </TouchableOpacity>
-                      ))}
+                      {(pharmacies || []).length === 0
+                        ? <View style={s.dropItem}>
+                            <Text style={{ color: colors.textMuted }}>
+                              {loadingPh ? t('chargement') : t('aucun_medicament_dispo')}
+                            </Text>
+                          </View>
+                        : (pharmacies || []).map(p => (
+                            <TouchableOpacity key={p.id}
+                              style={[s.dropItem, { borderBottomColor: colors.borderLight }]}
+                              onPress={() => { set('pharmacie_id', String(p.id)); setShowPharma(false); }}>
+                              <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textPrimary }}>{p.nom}</Text>
+                              {p.adresse
+                                ? <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>{p.adresse}</Text>
+                                : null}
+                            </TouchableOpacity>
+                          ))}
                     </View>
                   )}
                 </>
-              ) : null}
+              )}
             </>
           )}
 
           {/* Mot de passe */}
-          <Text style={[s.label, { color: colors.textMuted, marginTop: 12 }]}>Mot de passe *</Text>
+          <Text style={[s.label, { color: colors.textMuted, marginTop: 12 }]}>{t('mot_de_passe')} *</Text>
           <TextInput
             style={[s.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.textPrimary }]}
             value={form.mot_de_passe} onChangeText={v => set('mot_de_passe', v)}
-            placeholder="Mot de passe" placeholderTextColor={colors.textMuted}
+            placeholder={t('mot_de_passe')} placeholderTextColor={colors.textMuted}
             secureTextEntry
           />
 
           <TouchableOpacity
-            style={[s.submitBtn, { backgroundColor: isOnline ? colors.primary : colors.textMuted, marginTop: 20 }]}
-            onPress={handleSubmit} disabled={loading || !isOnline}>
+            style={[s.submitBtn, { backgroundColor: colors.primary, marginTop: 20, opacity: loading ? 0.7 : 1 }]}
+            onPress={handleSubmit}
+            disabled={loading}>
             {loading
               ? <ActivityIndicator color="#fff" />
-              : <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>{isOnline ? 'Se connecter' : 'Hors ligne'}</Text>}
+              : <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>{t('se_connecter')}</Text>}
           </TouchableOpacity>
 
-          {/* Comptes demo */}
-          <View style={[s.demo, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}>
+          {/* Comptes démo */}
+          <View style={[s.demo, { backgroundColor: colors.cardAlt || colors.inputBg, borderColor: colors.border }]}>
             <Text style={{ fontSize: 11, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
-              Comptes demo (mdp : Admin1234!)
+              {t('comptes_demo')}
             </Text>
             {[
-              ['admin.tana@depot.mg',  'Gestionnaire Antananarivo'],
-              ['admin.fiana@depot.mg', 'Gestionnaire Fianarantsoa'],
-              ['admin.toam@depot.mg',  'Gestionnaire Toamasina'],
-              ['admin.maha@depot.mg',  'Gestionnaire Mahajanga'],
-              ['admin.toli@depot.mg',  'Gestionnaire Toliara'],
-              ['admin.antsi@depot.mg', 'Gestionnaire Antsiranana'],
-            ].map(([email, label]) => (
+              ['admin.tana@depot.mg',  'Antananarivo'],
+              ['admin.fiana@depot.mg', 'Fianarantsoa'],
+              ['admin.toam@depot.mg',  'Toamasina'],
+              ['admin.maha@depot.mg',  'Mahajanga'],
+              ['admin.toli@depot.mg',  'Toliara'],
+              ['admin.antsi@depot.mg', 'Antsiranana'],
+            ].map(([email, province]) => (
               <TouchableOpacity key={email} style={{ marginBottom: 6 }}
                 onPress={() => { set('email', email); set('mot_de_passe', 'Admin1234!'); setRole('gestionnaire'); }}>
-                <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>{label}</Text>
-                <Text style={{ fontSize: 11, color: colors.textMuted, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' }}>{email}</Text>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>
+                  {t('gestionnaire')} — {province}
+                </Text>
+                <Text style={{ fontSize: 11, color: colors.textMuted, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' }}>
+                  {email}
+                </Text>
               </TouchableOpacity>
             ))}
             <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 6, fontStyle: 'italic' }}>
-              Client : selectionner une province puis une pharmacie (mdp : Client123)
+              {t('client_info')}
             </Text>
           </View>
         </View>
@@ -243,8 +289,8 @@ const styles = (c) => StyleSheet.create({
   logoBox:   { width: 62, height: 62, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
   logoTxt:   { color: '#fff', fontSize: 28, fontWeight: '800' },
   appName:   { fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },
-  appSub:    { fontSize: 13, marginTop: 4 },
-  themeBtn:  { marginTop: 14, paddingVertical: 7, paddingHorizontal: 18, borderRadius: 20, borderWidth: 1.5 },
+  appSub:    { fontSize: 13, marginTop: 4, textAlign: 'center' },
+  btn:       { paddingVertical: 7, paddingHorizontal: 16, borderRadius: 20, borderWidth: 1.5 },
   card:      { borderRadius: 18, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 3 },
   label:     { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
   input:     { borderWidth: 1.5, borderRadius: 12, padding: 13, fontSize: 14 },
