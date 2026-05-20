@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const PharmacieModel = require('../models/pharmacieModel');
 const MedicamentModel = require('../models/medicamentModel');
 const CommandeModel = require('../models/commandeModel');
+const LivraisonModel = require('../models/livraisonModel');
 const { generateToken } = require('../config/auth');
 const { getDb } = require('../config/database');
 
@@ -79,6 +80,41 @@ const ClientController = {
       if (commande.pharmacie_id !== req.user.id)
         return res.status(403).json({ success: false, message: 'Accès interdit' });
       res.json({ success: true, data: commande });
+    } catch(err) { res.status(500).json({ success: false, message: err.message }); }
+  },
+
+  getMesLivraisons(req, res) {
+    try {
+      const pharmacie_id = req.user.id;
+      const { statut } = req.query;
+      const db = getDb();
+      let sql = `SELECT l.*, c.montant_total, c.urgence, p.nom as pharmacie_nom,
+                 p.adresse as pharmacie_adresse
+                 FROM livraisons l
+                 JOIN commandes c ON l.commande_id = c.id
+                 JOIN pharmacies p ON l.pharmacie_id = p.id
+                 WHERE l.pharmacie_id = ?`;
+      const params = [pharmacie_id];
+      if (statut) { sql += ' AND l.statut = ?'; params.push(statut); }
+      sql += ' ORDER BY l.created_at DESC';
+      const livraisons = db.query(sql, params);
+      res.json({ success: true, data: livraisons });
+    } catch(err) { res.status(500).json({ success: false, message: err.message }); }
+  },
+
+  confirmerLivraison(req, res) {
+    try {
+      const pharmacie_id = req.user.id;
+      const db = getDb();
+      const livraison = db.queryOne(
+        'SELECT * FROM livraisons WHERE id = ? AND pharmacie_id = ?',
+        [req.params.id, pharmacie_id]
+      );
+      if (!livraison) return res.status(404).json({ success: false, message: 'Livraison introuvable ou accès refusé' });
+      if (livraison.statut !== 'en_cours')
+        return res.status(400).json({ success: false, message: 'La livraison doit être en cours pour être confirmée' });
+      LivraisonModel.updateStatut(req.params.id, 'livre');
+      res.json({ success: true, message: 'Livraison confirmée avec succès' });
     } catch(err) { res.status(500).json({ success: false, message: err.message }); }
   }
 };
