@@ -120,6 +120,8 @@ class ApiService {
   clientCreerCommande = (d) => this.request('POST', '/client/commandes', d, null, true);
   clientGetCommandes = () => this.request('GET', '/client/commandes', null, 'client_commandes');
   clientGetCommandeDetail = (id) => this.request('GET', `/client/commandes/${id}`);
+  clientGetLivraisons = (p = {}) => { const qs = new URLSearchParams(p).toString(); return this.request('GET', `/client/livraisons${qs?'?'+qs:''}`, null, 'client_livraisons'); };
+  clientConfirmerLivraison = (id) => this.request('PUT', `/client/livraisons/${id}/confirmer`, {});
 
   // Livraisons
   getLivraisons = (p = {}) => { const qs = new URLSearchParams(p).toString(); return this.request('GET', `/livraisons${qs?'?'+qs:''}`, null, 'livraisons'); };

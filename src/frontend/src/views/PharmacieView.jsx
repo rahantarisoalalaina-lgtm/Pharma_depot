@@ -1,10 +1,12 @@
 // src/views/PharmacieView.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Toast, useToast } from '../components/Toast';
+import { useTranslation } from '../App';
 import api from '../services/api';
 
 export default function PharmacieView() {
   const toast = useToast();
+  const { t, lang } = useTranslation();
   const [pharmacies, setPharmacies] = useState([]);
   const [provinces, setProvinces] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -19,7 +21,6 @@ export default function PharmacieView() {
   const [form, setForm] = useState({ nom: '', adresse: '', telephone: '', email: '', contact_nom: '', mot_de_passe: '' });
   const debounceRef = useRef(null);
 
-  // Debounce: attendre 350ms après la dernière frappe avant de lancer la recherche
   useEffect(() => {
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
@@ -55,10 +56,10 @@ export default function PharmacieView() {
     try {
       if (editItem) {
         await api.updatePharmacie(editItem.id, form);
-        toast.success('Pharmacie mise à jour');
+        toast.success(t('modificationReussie'));
       } else {
         await api.createPharmacie(form);
-        toast.success('Pharmacie créée — mot de passe : ' + (form.mot_de_passe || 'Client123'));
+        toast.success(t('enregistrementReussi'));
       }
       setShowModal(false); load();
     } catch (err) { toast.error(err.message); }
@@ -66,31 +67,41 @@ export default function PharmacieView() {
   };
 
   const handleDelete = async p => {
-    if (!window.confirm(`Supprimer "${p.nom}" ?`)) return;
-    try { await api.deletePharmacie(p.id); toast.success('Supprimée'); load(); }
+    if (!window.confirm(`${t('confirmerSuppression')} "${p.nom}" ?`)) return;
+    try { await api.deletePharmacie(p.id); toast.success(t('suppressionReussie')); load(); }
     catch (err) { toast.error(err.message); }
   };
 
   const handleChangePassword = async () => {
-    if (!newPassword || newPassword.length < 4) { toast.error('Mot de passe trop court (min 4 caractères)'); return; }
+    if (!newPassword || newPassword.length < 4) {
+      toast.error(lang === 'mg' ? 'Fohy loatra ny teny miafina (min 4)' : 'Mot de passe trop court (min 4 caractères)');
+      return;
+    }
     try {
       await api.changePharmaciePassword(showPassModal.id, newPassword);
-      toast.success(`Mot de passe changé pour ${showPassModal.nom}`);
+      toast.success(t('modificationReussie'));
       setShowPassModal(null); setNewPassword('');
     } catch (err) { toast.error(err.message); }
   };
 
   const handleResetAll = async () => {
-    if (!window.confirm('Réinitialiser le mot de passe de TOUTES les pharmacies à "Client123" ?')) return;
+    const msg = lang === 'mg'
+      ? 'Averina "Client123" ny teny miafina an\'ireo tsena fanafody rehetra?'
+      : 'Réinitialiser le mot de passe de TOUTES les pharmacies à "Client123" ?';
+    if (!window.confirm(msg)) return;
     setResettingAll(true);
     try {
       await api.resetAllPharmaciePasswords();
-      toast.success('Tous les mots de passe réinitialisés à "Client123"');
+      toast.success(t('operationReussie'));
     } catch (err) { toast.error(err.message); }
     finally { setResettingAll(false); }
   };
 
   const fmtMoney = n => `${Number(n || 0).toLocaleString('fr-FR')} Ar`;
+
+  const countLabel = lang === 'mg'
+    ? `${pharmacies.length} tsena fanafody`
+    : `${pharmacies.length} pharmacie${pharmacies.length > 1 ? 's' : ''} dans votre province`;
 
   return (
     <div>
@@ -98,17 +109,19 @@ export default function PharmacieView() {
 
       <div className="page-header">
         <div>
-          <div className="page-title">Pharmacies</div>
-          <div className="page-subtitle">{pharmacies.length} pharmacie{pharmacies.length > 1 ? 's' : ''} dans votre province</div>
+          <div className="page-title">{t('pharmacies')}</div>
+          <div className="page-subtitle">{countLabel}</div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn btn-outline" onClick={handleResetAll} disabled={resettingAll}
             style={{ color: 'var(--warning)', borderColor: 'var(--warning)' }}>
-            {resettingAll ? 'Réinitialisation...' : 'Reset tous les MDP → Client123'}
+            {resettingAll
+              ? (lang === 'mg' ? 'Averina...' : 'Réinitialisation...')
+              : (lang === 'mg' ? 'Averina Client123' : 'Reset tous les MDP → Client123')}
           </button>
           <button className="btn btn-primary" onClick={openCreate}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Ajouter
+            {t('ajouter')}
           </button>
         </div>
       </div>
@@ -122,7 +135,7 @@ export default function PharmacieView() {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Rechercher par nom, adresse, contact..."
+            placeholder={lang === 'mg' ? 'Hikaroka anarana, adiresy, fikambanana...' : 'Rechercher par nom, adresse, contact...'}
             style={{ width: '100%', padding: '9px 36px 9px 36px', borderRadius: 8, border: '1.5px solid var(--border)', boxSizing: 'border-box' }}
           />
           {search && (
@@ -134,7 +147,7 @@ export default function PharmacieView() {
         </div>
         {debouncedSearch && !loading && (
           <div style={{ fontSize: '.82rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
-            {pharmacies.length} résultat{pharmacies.length !== 1 ? 's' : ''} pour <strong style={{ marginLeft: 4 }}>"{debouncedSearch}"</strong>
+            {pharmacies.length} {lang === 'mg' ? 'vokatra' : `résultat${pharmacies.length !== 1 ? 's' : ''}`} {lang === 'mg' ? 'ho an\'ny' : 'pour'} <strong style={{ marginLeft: 4 }}>"{debouncedSearch}"</strong>
           </div>
         )}
       </div>
@@ -143,11 +156,21 @@ export default function PharmacieView() {
         <div className="table-container">
           <table>
             <thead>
-              <tr><th>Pharmacie</th><th>Contact</th><th>Téléphone</th><th>Commandes</th><th>Total achats</th><th>Accès</th><th>Actions</th></tr>
+              <tr>
+                <th>{t('pharmacie')}</th>
+                <th>{lang === 'mg' ? 'Fikambanana' : 'Contact'}</th>
+                <th>{lang === 'mg' ? 'Finday' : 'Téléphone'}</th>
+                <th>{t('commandes')}</th>
+                <th>{lang === 'mg' ? 'Vola naloa rehetra' : 'Total achats'}</th>
+                <th>{lang === 'mg' ? 'Hiditra' : 'Accès'}</th>
+                <th>{lang === 'mg' ? 'Hetsika' : 'Actions'}</th>
+              </tr>
             </thead>
             <tbody>
               {pharmacies.length === 0 ? (
-                <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Aucune pharmacie</td></tr>
+                <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
+                  {lang === 'mg' ? 'Tsy misy tsena fanafody' : 'Aucune pharmacie'}
+                </td></tr>
               ) : pharmacies.map(p => (
                 <tr key={p.id}>
                   <td>
@@ -160,7 +183,9 @@ export default function PharmacieView() {
                   <td className="font-mono" style={{ color: 'var(--accent)' }}>{fmtMoney(p.total_achats)}</td>
                   <td>
                     <button className="btn btn-outline btn-sm" onClick={() => { setShowPassModal(p); setNewPassword(''); }}
-                      style={{ fontSize: '.72rem' }}>MDP</button>
+                      style={{ fontSize: '.72rem' }}>
+                      {lang === 'mg' ? 'Teny miafina' : 'MDP'}
+                    </button>
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: 5 }}>
@@ -184,29 +209,56 @@ export default function PharmacieView() {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <span className="modal-title">{editItem ? 'Modifier la pharmacie' : 'Ajouter une pharmacie'}</span>
+              <span className="modal-title">
+                {editItem
+                  ? (lang === 'mg' ? 'Ovaina ny tsena fanafody' : 'Modifier la pharmacie')
+                  : (lang === 'mg' ? 'Hanampy tsena fanafody' : 'Ajouter une pharmacie')}
+              </span>
               <button className="modal-close" onClick={() => setShowModal(false)}>✕</button>
             </div>
             <form onSubmit={handleSave}>
               <div className="modal-body">
-                <div className="form-group"><label>Nom *</label><input value={form.nom} onChange={e => setForm(f => ({ ...f, nom: e.target.value }))} required /></div>
-                <div className="form-group"><label>Adresse *</label><input value={form.adresse} onChange={e => setForm(f => ({ ...f, adresse: e.target.value }))} required /></div>
-                <div className="form-row">
-                  <div className="form-group"><label>Téléphone</label><input value={form.telephone} onChange={e => setForm(f => ({ ...f, telephone: e.target.value }))} /></div>
-                  <div className="form-group"><label>Email</label><input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></div>
+                <div className="form-group">
+                  <label>{lang === 'mg' ? 'Anarana *' : 'Nom *'}</label>
+                  <input value={form.nom} onChange={e => setForm(f => ({ ...f, nom: e.target.value }))} required />
                 </div>
-                <div className="form-group"><label>Contact (nom)</label><input value={form.contact_nom} onChange={e => setForm(f => ({ ...f, contact_nom: e.target.value }))} /></div>
+                <div className="form-group">
+                  <label>{lang === 'mg' ? 'Adiresy *' : 'Adresse *'}</label>
+                  <input value={form.adresse} onChange={e => setForm(f => ({ ...f, adresse: e.target.value }))} required />
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>{lang === 'mg' ? 'Finday' : 'Téléphone'}</label>
+                    <input value={form.telephone} onChange={e => setForm(f => ({ ...f, telephone: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label>{t('email')}</label>
+                    <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>{lang === 'mg' ? 'Anarana mpandraharaha' : 'Contact (nom)'}</label>
+                  <input value={form.contact_nom} onChange={e => setForm(f => ({ ...f, contact_nom: e.target.value }))} />
+                </div>
                 {!editItem && (
                   <div className="form-group">
-                    <label>Mot de passe initial</label>
+                    <label>{lang === 'mg' ? 'Teny miafina voaloha' : 'Mot de passe initial'}</label>
                     <input type="text" value={form.mot_de_passe} onChange={e => setForm(f => ({ ...f, mot_de_passe: e.target.value }))} placeholder="Client123" />
-                    <div style={{ fontSize: '.74rem', color: 'var(--text-muted)', marginTop: 4 }}>Laissez vide pour utiliser "Client123" par défaut</div>
+                    <div style={{ fontSize: '.74rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                      {lang === 'mg' ? 'Avela foana raha "Client123" no ampiasaina' : 'Laissez vide pour utiliser "Client123" par défaut'}
+                    </div>
                   </div>
                 )}
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-outline" onClick={() => setShowModal(false)}>Annuler</button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Enregistrement...' : (editItem ? 'Mettre à jour' : 'Créer')}</button>
+                <button type="button" className="btn btn-outline" onClick={() => setShowModal(false)}>{t('annuler')}</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>
+                  {saving
+                    ? (lang === 'mg' ? 'Tahirizana...' : 'Enregistrement...')
+                    : editItem
+                      ? (lang === 'mg' ? 'Ovaina' : 'Mettre à jour')
+                      : (lang === 'mg' ? 'Hamorona' : 'Créer')}
+                </button>
               </div>
             </form>
           </div>
@@ -218,7 +270,9 @@ export default function PharmacieView() {
         <div className="modal-overlay" onClick={() => setShowPassModal(null)}>
           <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <span className="modal-title">Changer le mot de passe</span>
+              <span className="modal-title">
+                {lang === 'mg' ? 'Ovaina ny teny miafina' : 'Changer le mot de passe'}
+              </span>
               <button className="modal-close" onClick={() => setShowPassModal(null)}>✕</button>
             </div>
             <div className="modal-body">
@@ -227,17 +281,19 @@ export default function PharmacieView() {
                 <div style={{ color: 'var(--text-muted)', fontSize: '.78rem', marginTop: 4 }}>{showPassModal.adresse}</div>
               </div>
               <div className="form-group">
-                <label>Nouveau mot de passe *</label>
+                <label>{lang === 'mg' ? 'Teny miafina vaovao *' : 'Nouveau mot de passe *'}</label>
                 <input type="text" value={newPassword} onChange={e => setNewPassword(e.target.value)}
                   placeholder="Ex: Client123" autoFocus />
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <button className="btn btn-outline btn-sm" onClick={() => setNewPassword('Client123')}>Remettre Client123</button>
+                <button className="btn btn-outline btn-sm" onClick={() => setNewPassword('Client123')}>
+                  {lang === 'mg' ? 'Averina Client123' : 'Remettre Client123'}
+                </button>
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-outline" onClick={() => setShowPassModal(null)}>Annuler</button>
-              <button className="btn btn-primary" onClick={handleChangePassword}>Confirmer</button>
+              <button className="btn btn-outline" onClick={() => setShowPassModal(null)}>{t('annuler')}</button>
+              <button className="btn btn-primary" onClick={handleChangePassword}>{t('confirmer')}</button>
             </div>
           </div>
         </div>

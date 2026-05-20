@@ -11,6 +11,7 @@ import LivraisonView from './views/LivraisonView';
 import ClientDashboard from './views/client/ClientDashboard';
 import ClientStock from './views/client/ClientStock';
 import ClientCommandes from './views/client/ClientCommandes';
+import ClientLivraisons from './views/client/ClientLivraisons';
 import Sidebar from './components/Sidebar';
 import './App.css';
 
@@ -132,6 +133,7 @@ export default function App() {
               <Route path="/client" element={<PrivateRoute requireRole="client"><ClientDashboard /></PrivateRoute>} />
               <Route path="/client/stock" element={<PrivateRoute requireRole="client"><ClientStock /></PrivateRoute>} />
               <Route path="/client/commandes" element={<PrivateRoute requireRole="client"><ClientCommandes /></PrivateRoute>} />
+              <Route path="/client/livraisons" element={<PrivateRoute requireRole="client"><ClientLivraisons /></PrivateRoute>} />
               <Route path="*" element={<Navigate to={user ? defaultHome : '/login'} replace />} />
             </Routes>
           </BrowserRouter>

@@ -44,6 +44,7 @@ export default function Sidebar({ isOpen, onToggle }) {
     { to:'/client', label: lang === 'fr' ? 'Mon espace' : 'Ny efitrano', icon:'dashboard', end:true },
     { to:'/client/stock', label: lang === 'fr' ? 'Stocks disponibles' : 'Fitahirizana misy', icon:'stock' },
     { to:'/client/commandes', label: lang === 'fr' ? 'Mes commandes' : 'Ny baiko', icon:'mescommandes' },
+    { to:'/client/livraisons', label: lang === 'fr' ? 'Mes livraisons' : 'Ny fandefasana', icon:'livraisons' },
   ];
   const navItems = isClient ? clientNav : gestionnaireNav;
   const initials = user ? `${(user.prenom||'')[0]||''}${(user.nom||'')[0]||''}`.toUpperCase() : 'U';
